@@ -48,7 +48,7 @@
       <div class="mb-4">
         <p class="text-sm font-bold uppercase tracking-wide text-blue-700">Colaboración comunitaria</p>
         <h2 class="text-2xl font-extrabold text-slate-900">Crear nuevo punto de acopio</h2>
-        <p class="mt-2 text-sm text-slate-600">Registra lugares reportados por la comunidad. Si no tienes coordenadas, la app ubicará el marcador en el centro del municipio seleccionado.</p>
+        <p class="mt-2 text-sm text-slate-600">Registra lugares reportados por la comunidad. Al conectar Firebase, todos los visitantes verán los nuevos puntos en tiempo real. Si no tienes coordenadas, la app ubicará el marcador en el centro del municipio seleccionado.</p>
       </div>
       <form id="pointForm" class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div>
@@ -84,6 +84,7 @@
         <div class="md:col-span-2 xl:col-span-4">
           <button class="w-full rounded-2xl bg-red-600 px-6 py-4 text-lg font-extrabold text-white transition hover:bg-red-700" type="submit">Agregar punto de acopio</button>
           <p id="formMessage" class="mt-3 hidden rounded-2xl bg-green-50 px-4 py-3 text-sm font-bold text-green-800"></p>
+          <p id="syncStatus" class="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">Modo demo: configura Firebase para sincronizar puntos en tiempo real entre todos los visitantes.</p>
         </div>
       </form>
     </section>
@@ -109,18 +110,30 @@
 
   <footer class="mt-8 border-t border-slate-200 bg-white">
     <div class="mx-auto max-w-7xl px-4 py-6 text-sm text-slate-600 sm:px-6 lg:px-8">
-      <strong>Nota:</strong> Esta es una app MVP con datos simulados para despliegue rápido. Sustituye la información por fuentes oficiales antes de uso público.
+      <strong>Nota:</strong> Los puntos iniciales son datos simulados. Los registros comunitarios se sincronizan en Firebase cuando configures las credenciales del proyecto antes de publicar en Netlify.
     </div>
   </footer>
 
-  <script>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+    import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+
+    const firebaseConfig = {
+      apiKey: 'REEMPLAZA_CON_TU_API_KEY',
+      authDomain: 'REEMPLAZA_CON_TU_AUTH_DOMAIN',
+      projectId: 'REEMPLAZA_CON_TU_PROJECT_ID',
+      storageBucket: 'REEMPLAZA_CON_TU_STORAGE_BUCKET',
+      messagingSenderId: 'REEMPLAZA_CON_TU_MESSAGING_SENDER_ID',
+      appId: 'REEMPLAZA_CON_TU_APP_ID'
+    };
+
     const defaultPoints = [
-      { city: 'Cali', name: 'Cruz Roja Colombiana Seccional Valle', address: 'Carrera 38 Bis #5-91, San Fernando, Cali', hours: 'Lunes a domingo, 8:00 a.m. - 6:00 p.m.', urgent: ['Agua', 'Alimentos no perecederos', 'Kits de aseo'], lat: 3.4216, lng: -76.5391 },
-      { city: 'Corinto', name: 'Coliseo Municipal de Corinto', address: 'Calle 7 con Carrera 9, Centro, Corinto', hours: '8:00 a.m. - 5:00 p.m.', urgent: ['Cobijas', 'Linternas', 'Agua potable'], lat: 3.1742, lng: -76.2594 },
-      { city: 'Miranda', name: 'Casa de la Cultura de Miranda', address: 'Carrera 6 #7-45, Parque Principal, Miranda', hours: '7:30 a.m. - 5:30 p.m.', urgent: ['Pañales', 'Suero oral', 'Alimentos enlatados'], lat: 3.2494, lng: -76.2286 },
-      { city: 'Caloto', name: 'Alcaldía Municipal de Caloto', address: 'Carrera 5 #10-13, Centro Administrativo, Caloto', hours: '8:00 a.m. - 4:30 p.m.', urgent: ['Carpas', 'Cobijas', 'Botiquines'], lat: 3.0359, lng: -76.4079 },
-      { city: 'Santander de Quilichao', name: 'Centro de Integración Ciudadana', address: 'Carrera 11 #3-60, Santander de Quilichao', hours: 'Lunes a sábado, 8:00 a.m. - 6:00 p.m.', urgent: ['Agua', 'Ropa en buen estado', 'Comida para bebé'], lat: 3.0094, lng: -76.4849 },
-      { city: 'Pereira', name: 'Cruz Roja Risaralda', address: 'Avenida 30 de Agosto #35-30, Pereira', hours: '9:00 a.m. - 6:00 p.m.', urgent: ['Medicamentos básicos', 'Aseo personal', 'Alimentos secos'], lat: 4.8087, lng: -75.6906 }
+      { city: 'Cali', name: 'Cruz Roja Colombiana Seccional Valle', address: 'Carrera 38 Bis #5-91, San Fernando, Cali', hours: 'Lunes a domingo, 8:00 a.m. - 6:00 p.m.', urgent: ['Agua', 'Alimentos no perecederos', 'Kits de aseo'], lat: 3.4216, lng: -76.5391, source: 'demo' },
+      { city: 'Corinto', name: 'Coliseo Municipal de Corinto', address: 'Calle 7 con Carrera 9, Centro, Corinto', hours: '8:00 a.m. - 5:00 p.m.', urgent: ['Cobijas', 'Linternas', 'Agua potable'], lat: 3.1742, lng: -76.2594, source: 'demo' },
+      { city: 'Miranda', name: 'Casa de la Cultura de Miranda', address: 'Carrera 6 #7-45, Parque Principal, Miranda', hours: '7:30 a.m. - 5:30 p.m.', urgent: ['Pañales', 'Suero oral', 'Alimentos enlatados'], lat: 3.2494, lng: -76.2286, source: 'demo' },
+      { city: 'Caloto', name: 'Alcaldía Municipal de Caloto', address: 'Carrera 5 #10-13, Centro Administrativo, Caloto', hours: '8:00 a.m. - 4:30 p.m.', urgent: ['Carpas', 'Cobijas', 'Botiquines'], lat: 3.0359, lng: -76.4079, source: 'demo' },
+      { city: 'Santander de Quilichao', name: 'Centro de Integración Ciudadana', address: 'Carrera 11 #3-60, Santander de Quilichao', hours: 'Lunes a sábado, 8:00 a.m. - 6:00 p.m.', urgent: ['Agua', 'Ropa en buen estado', 'Comida para bebé'], lat: 3.0094, lng: -76.4849, source: 'demo' },
+      { city: 'Pereira', name: 'Cruz Roja Risaralda', address: 'Avenida 30 de Agosto #35-30, Pereira', hours: '9:00 a.m. - 6:00 p.m.', urgent: ['Medicamentos básicos', 'Aseo personal', 'Alimentos secos'], lat: 4.8087, lng: -75.6906, source: 'demo' }
     ];
 
     const cityCenters = {
@@ -131,10 +144,13 @@
       'Santander de Quilichao': [3.0094, -76.4849],
       Pereira: [4.8087, -75.6906]
     };
-    const storageKey = 'communityCollectionPoints';
-    let communityPoints = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    let collectionPoints = [...defaultPoints, ...communityPoints];
+
+    let communityPoints = [];
+    let collectionPoints = [...defaultPoints];
     let markers = [];
+    let db = null;
+    const firebaseIsConfigured = !Object.values(firebaseConfig).some(value => value.startsWith('REEMPLAZA_'));
+    localStorage.removeItem('communityCollectionPoints');
 
     const citySelect = document.querySelector('#citySelect');
     const formCity = document.querySelector('#formCity');
@@ -144,17 +160,26 @@
     const countBadge = document.querySelector('#countBadge');
     const pointForm = document.querySelector('#pointForm');
     const formMessage = document.querySelector('#formMessage');
+    const syncStatus = document.querySelector('#syncStatus');
     const mapStatus = document.querySelector('#mapStatus');
 
     const map = L.map('map', { scrollWheelZoom: false }).setView(cityCenters.Cali, 12);
+    window.map = map;
+    window.markers = markers;
     const tileLayers = [
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }),
       L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' })
     ];
     tileLayers[0].addTo(map);
+
     function showMapStatus(message) {
       mapStatus.textContent = message;
       mapStatus.classList.remove('hidden');
+    }
+
+    function setSyncStatus(message, mode = 'warning') {
+      syncStatus.textContent = message;
+      syncStatus.className = `mt-3 rounded-2xl px-4 py-3 text-sm font-bold ${mode === 'success' ? 'bg-green-50 text-green-800' : mode === 'error' ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`;
     }
 
     tileLayers[0].on('tileerror', () => {
@@ -189,13 +214,15 @@
     }
 
     function popupTemplate(point) {
-      return `<strong class="text-base text-slate-900">${escapeHtml(point.name)}</strong><br><span>${escapeHtml(point.address)}</span><br><span><b>Horario:</b> ${escapeHtml(point.hours)}</span><br><span><b>Urgente:</b> ${point.urgent.map(escapeHtml).join(', ')}</span>`;
+      const sourceLabel = point.source === 'community' ? '<br><span class="font-bold text-blue-700">Reporte comunitario en vivo</span>' : '';
+      return `<strong class="text-base text-slate-900">${escapeHtml(point.name)}</strong><br><span>${escapeHtml(point.address)}</span><br><span><b>Horario:</b> ${escapeHtml(point.hours)}</span><br><span><b>Urgente:</b> ${point.urgent.map(escapeHtml).join(', ')}</span>${sourceLabel}`;
     }
 
     function renderCity(city) {
       const points = collectionPoints.filter(point => point.city === city);
       markers.forEach(marker => marker.remove());
       markers = points.map(point => L.marker([point.lat, point.lng], { icon: redIcon }).addTo(map).bindPopup(popupTemplate(point)));
+      window.markers = markers;
 
       if (markers.length > 1) {
         map.fitBounds(L.featureGroup(markers).getBounds().pad(0.25));
@@ -210,7 +237,10 @@
       countBadge.textContent = `${points.length} punto${points.length === 1 ? '' : 's'}`;
       locationsList.innerHTML = points.length ? points.map((point, index) => `
         <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <h3 class="text-lg font-extrabold text-slate-900">${escapeHtml(point.name)}</h3>
+          <div class="flex items-start justify-between gap-3">
+            <h3 class="text-lg font-extrabold text-slate-900">${escapeHtml(point.name)}</h3>
+            ${point.source === 'community' ? '<span class="shrink-0 rounded-full bg-blue-100 px-2 py-1 text-xs font-black text-blue-700">En vivo</span>' : ''}
+          </div>
           <p class="mt-2 text-sm font-semibold text-slate-700">📍 ${escapeHtml(point.address)}</p>
           <p class="mt-2 text-sm text-slate-600">🕒 ${escapeHtml(point.hours)}</p>
           <div class="mt-3 flex flex-wrap gap-2">${point.urgent.map(item => `<span class="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">${escapeHtml(item)}</span>`).join('')}</div>
@@ -224,7 +254,42 @@
       });
     }
 
-    pointForm.addEventListener('submit', event => {
+    function normalizeRemotePoint(doc) {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        city: data.city,
+        name: data.name,
+        address: data.address,
+        hours: data.hours,
+        urgent: Array.isArray(data.urgent) ? data.urgent : String(data.urgent || '').split(',').map(item => item.trim()).filter(Boolean),
+        lat: Number(data.lat),
+        lng: Number(data.lng),
+        source: 'community'
+      };
+    }
+
+    function subscribeToRealtimePoints() {
+      if (!firebaseIsConfigured) {
+        setSyncStatus('Modo demo: reemplaza firebaseConfig con tu proyecto de Firebase para que todos vean los mismos puntos en tiempo real. Los puntos creados aquí solo se verán hasta recargar la página.', 'warning');
+        return;
+      }
+
+      const app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      setSyncStatus('Conectando a puntos comunitarios en tiempo real...', 'warning');
+      const pointsQuery = query(collection(db, 'collectionPoints'), orderBy('createdAt', 'desc'));
+      onSnapshot(pointsQuery, snapshot => {
+        communityPoints = snapshot.docs.map(normalizeRemotePoint).filter(point => cityCenters[point.city] && !Number.isNaN(point.lat) && !Number.isNaN(point.lng));
+        collectionPoints = [...defaultPoints, ...communityPoints];
+        setSyncStatus('Conectado: los puntos comunitarios se actualizan en tiempo real para todos.', 'success');
+        renderCity(citySelect.value || 'Cali');
+      }, error => {
+        setSyncStatus(`No se pudo sincronizar con Firebase: ${error.message}`, 'error');
+      });
+    }
+
+    pointForm.addEventListener('submit', async event => {
       event.preventDefault();
       const city = formCity.value;
       const [centerLat, centerLng] = cityCenters[city];
@@ -240,17 +305,29 @@
         urgent: document.querySelector('#pointUrgent').value.split(',').map(item => item.trim()).filter(Boolean),
         lat,
         lng,
-        community: true
+        source: 'community'
       };
-      communityPoints = [...communityPoints, point];
-      localStorage.setItem(storageKey, JSON.stringify(communityPoints));
-      collectionPoints = [...collectionPoints, point];
+
+      if (db) {
+        try {
+          await addDoc(collection(db, 'collectionPoints'), { ...point, createdAt: serverTimestamp() });
+          formMessage.textContent = 'Punto enviado. Aparecerá en tiempo real para todos los visitantes.';
+        } catch (error) {
+          formMessage.textContent = `No se pudo enviar a Firebase: ${error.message}`;
+          formMessage.className = 'mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-800';
+          return;
+        }
+      } else {
+        communityPoints = [point, ...communityPoints];
+        collectionPoints = [...defaultPoints, ...communityPoints];
+        formMessage.textContent = 'Punto agregado en modo demo. Configura Firebase para compartirlo con todos en Netlify.';
+        renderCity(city);
+      }
+
       pointForm.reset();
       formCity.value = city;
       citySelect.value = city;
-      formMessage.textContent = 'Punto agregado. La tarjeta y el marcador ya están disponibles en el listado.';
       formMessage.classList.remove('hidden');
-      renderCity(city);
     });
 
     citySelect.addEventListener('change', event => renderCity(event.target.value));
@@ -264,6 +341,7 @@
 
     populateCityControls();
     renderCity('Cali');
+    subscribeToRealtimePoints();
   </script>
 </body>
 </html>
