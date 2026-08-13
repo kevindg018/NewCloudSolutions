@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /collectionPoints/{pointId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly([
+          'city', 'name', 'address', 'hours', 'urgent', 'lat', 'lng', 'source', 'createdAt'
+        ])
+        && request.resource.data.city in [
+          'Cali', 'Corinto', 'Miranda', 'Caloto', 'Santander de Quilichao', 'Pereira'
+        ]
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 2
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.address is string
+        && request.resource.data.address.size() > 5
+        && request.resource.data.address.size() <= 180
+        && request.resource.data.hours is string
+        && request.resource.data.hours.size() > 2
+        && request.resource.data.hours.size() <= 120
+        && request.resource.data.urgent is list
+        && request.resource.data.urgent.size() > 0
+        && request.resource.data.urgent.size() <= 8
+        && request.resource.data.lat is number
+        && request.resource.data.lat >= -5
+        && request.resource.data.lat <= 13
+        && request.resource.data.lng is number
+        && request.resource.data.lng >= -82
+        && request.resource.data.lng <= -66
+        && request.resource.data.source == 'community'
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+  }
+}
