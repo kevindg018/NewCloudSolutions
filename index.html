@@ -12,7 +12,8 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <style>
     body { font-family: 'Inter', sans-serif; }
-    #map { min-height: 430px; }
+    #map { min-height: 430px; background: #dbeafe; }
+    .leaflet-container { z-index: 1; }
     .leaflet-popup-content-wrapper { border-radius: 1rem; }
     .leaflet-popup-content { margin: 1rem; min-width: 220px; }
   </style>
@@ -43,9 +44,54 @@
       </div>
     </section>
 
+    <section class="mb-6 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-6">
+      <div class="mb-4">
+        <p class="text-sm font-bold uppercase tracking-wide text-blue-700">Colaboración comunitaria</p>
+        <h2 class="text-2xl font-extrabold text-slate-900">Crear nuevo punto de acopio</h2>
+        <p class="mt-2 text-sm text-slate-600">Registra lugares reportados por la comunidad. Si no tienes coordenadas, la app ubicará el marcador en el centro del municipio seleccionado.</p>
+      </div>
+      <form id="pointForm" class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <label for="formCity" class="mb-1 block text-sm font-bold text-slate-700">Municipio</label>
+          <select id="formCity" class="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"></select>
+        </div>
+        <div>
+          <label for="pointName" class="mb-1 block text-sm font-bold text-slate-700">Nombre del lugar</label>
+          <input id="pointName" required placeholder="Ej. Salón comunal" class="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+        </div>
+        <div class="md:col-span-2">
+          <label for="pointAddress" class="mb-1 block text-sm font-bold text-slate-700">Dirección</label>
+          <input id="pointAddress" required placeholder="Ej. Calle 10 #5-20, barrio Centro" class="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+        </div>
+        <div>
+          <label for="pointHours" class="mb-1 block text-sm font-bold text-slate-700">Horario</label>
+          <input id="pointHours" required placeholder="8:00 a.m. - 5:00 p.m." class="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+        </div>
+        <div class="md:col-span-2">
+          <label for="pointUrgent" class="mb-1 block text-sm font-bold text-slate-700">Insumos urgentes</label>
+          <input id="pointUrgent" required placeholder="Agua, cobijas, alimentos" class="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label for="pointLat" class="mb-1 block text-sm font-bold text-slate-700">Lat. opcional</label>
+            <input id="pointLat" type="number" step="any" placeholder="3.4216" class="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+          </div>
+          <div>
+            <label for="pointLng" class="mb-1 block text-sm font-bold text-slate-700">Lng. opcional</label>
+            <input id="pointLng" type="number" step="any" placeholder="-76.5391" class="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+          </div>
+        </div>
+        <div class="md:col-span-2 xl:col-span-4">
+          <button class="w-full rounded-2xl bg-red-600 px-6 py-4 text-lg font-extrabold text-white transition hover:bg-red-700" type="submit">Agregar punto de acopio</button>
+          <p id="formMessage" class="mt-3 hidden rounded-2xl bg-green-50 px-4 py-3 text-sm font-bold text-green-800"></p>
+        </div>
+      </form>
+    </section>
+
     <section class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-      <div class="overflow-hidden rounded-3xl bg-white shadow-lg ring-1 ring-slate-200">
+      <div class="relative overflow-hidden rounded-3xl bg-white shadow-lg ring-1 ring-slate-200">
         <div id="map" class="h-[58vh] w-full"></div>
+        <div id="mapStatus" class="pointer-events-none absolute left-4 top-4 z-[500] hidden max-w-sm rounded-2xl bg-white/95 p-3 text-sm font-bold text-slate-700 shadow-lg ring-1 ring-slate-200"></div>
       </div>
 
       <aside class="rounded-3xl bg-white p-4 shadow-lg ring-1 ring-slate-200 sm:p-6">
@@ -68,7 +114,7 @@
   </footer>
 
   <script>
-    const collectionPoints = [
+    const defaultPoints = [
       { city: 'Cali', name: 'Cruz Roja Colombiana Seccional Valle', address: 'Carrera 38 Bis #5-91, San Fernando, Cali', hours: 'Lunes a domingo, 8:00 a.m. - 6:00 p.m.', urgent: ['Agua', 'Alimentos no perecederos', 'Kits de aseo'], lat: 3.4216, lng: -76.5391 },
       { city: 'Corinto', name: 'Coliseo Municipal de Corinto', address: 'Calle 7 con Carrera 9, Centro, Corinto', hours: '8:00 a.m. - 5:00 p.m.', urgent: ['Cobijas', 'Linternas', 'Agua potable'], lat: 3.1742, lng: -76.2594 },
       { city: 'Miranda', name: 'Casa de la Cultura de Miranda', address: 'Carrera 6 #7-45, Parque Principal, Miranda', hours: '7:30 a.m. - 5:30 p.m.', urgent: ['Pañales', 'Suero oral', 'Alimentos enlatados'], lat: 3.2494, lng: -76.2286 },
@@ -77,53 +123,100 @@
       { city: 'Pereira', name: 'Cruz Roja Risaralda', address: 'Avenida 30 de Agosto #35-30, Pereira', hours: '9:00 a.m. - 6:00 p.m.', urgent: ['Medicamentos básicos', 'Aseo personal', 'Alimentos secos'], lat: 4.8087, lng: -75.6906 }
     ];
 
-    const cities = [...new Set(collectionPoints.map(point => point.city))];
+    const cityCenters = {
+      Cali: [3.4516, -76.5320],
+      Corinto: [3.1742, -76.2594],
+      Miranda: [3.2494, -76.2286],
+      Caloto: [3.0359, -76.4079],
+      'Santander de Quilichao': [3.0094, -76.4849],
+      Pereira: [4.8087, -75.6906]
+    };
+    const storageKey = 'communityCollectionPoints';
+    let communityPoints = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    let collectionPoints = [...defaultPoints, ...communityPoints];
+    let markers = [];
+
     const citySelect = document.querySelector('#citySelect');
+    const formCity = document.querySelector('#formCity');
     const quickButtons = document.querySelector('#quickButtons');
     const locationsList = document.querySelector('#locationsList');
     const listTitle = document.querySelector('#listTitle');
     const countBadge = document.querySelector('#countBadge');
-    let markers = [];
+    const pointForm = document.querySelector('#pointForm');
+    const formMessage = document.querySelector('#formMessage');
+    const mapStatus = document.querySelector('#mapStatus');
 
-    cities.forEach(city => {
-      citySelect.insertAdjacentHTML('beforeend', `<option value="${city}">${city}</option>`);
-      quickButtons.insertAdjacentHTML('beforeend', `<button type="button" data-city="${city}" class="shrink-0 rounded-full border-2 border-slate-200 px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:border-red-500 hover:bg-red-50 hover:text-red-700">${city}</button>`);
+    const map = L.map('map', { scrollWheelZoom: false }).setView(cityCenters.Cali, 12);
+    const tileLayers = [
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }),
+      L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' })
+    ];
+    tileLayers[0].addTo(map);
+    function showMapStatus(message) {
+      mapStatus.textContent = message;
+      mapStatus.classList.remove('hidden');
+    }
+
+    tileLayers[0].on('tileerror', () => {
+      if (!map.hasLayer(tileLayers[1])) {
+        map.removeLayer(tileLayers[0]);
+        tileLayers[1].addTo(map);
+        showMapStatus('Cambiamos a un servidor alterno de mapas para cargar mejor la ubicación.');
+      }
     });
-
-    const map = L.map('map', { scrollWheelZoom: false }).setView([3.4216, -76.5391], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    tileLayers[1].on('tileerror', () => showMapStatus('El mapa base no pudo cargar por conexión o bloqueo externo, pero los puntos siguen disponibles en las tarjetas.'));
 
     const redIcon = L.divIcon({
-      className: 'custom-marker',
+      className: '',
       html: '<div class="flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-xl text-white shadow-lg ring-4 ring-white">✚</div>',
       iconSize: [40, 40],
       iconAnchor: [20, 20]
     });
 
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+    }
+
+    function getCities() {
+      return Object.keys(cityCenters);
+    }
+
+    function populateCityControls() {
+      const cities = getCities();
+      citySelect.innerHTML = cities.map(city => `<option value="${escapeHtml(city)}">${escapeHtml(city)}</option>`).join('');
+      formCity.innerHTML = citySelect.innerHTML;
+      quickButtons.innerHTML = cities.map(city => `<button type="button" data-city="${escapeHtml(city)}" class="shrink-0 rounded-full border-2 border-slate-200 px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:border-red-500 hover:bg-red-50 hover:text-red-700">${escapeHtml(city)}</button>`).join('');
+    }
+
     function popupTemplate(point) {
-      return `<strong class="text-base text-slate-900">${point.name}</strong><br><span>${point.address}</span><br><span><b>Horario:</b> ${point.hours}</span><br><span><b>Urgente:</b> ${point.urgent.join(', ')}</span>`;
+      return `<strong class="text-base text-slate-900">${escapeHtml(point.name)}</strong><br><span>${escapeHtml(point.address)}</span><br><span><b>Horario:</b> ${escapeHtml(point.hours)}</span><br><span><b>Urgente:</b> ${point.urgent.map(escapeHtml).join(', ')}</span>`;
     }
 
     function renderCity(city) {
       const points = collectionPoints.filter(point => point.city === city);
       markers.forEach(marker => marker.remove());
       markers = points.map(point => L.marker([point.lat, point.lng], { icon: redIcon }).addTo(map).bindPopup(popupTemplate(point)));
-      if (points.length) map.setView([points[0].lat, points[0].lng], 13);
+
+      if (markers.length > 1) {
+        map.fitBounds(L.featureGroup(markers).getBounds().pad(0.25));
+      } else if (markers.length === 1) {
+        map.setView([points[0].lat, points[0].lng], 14);
+      } else {
+        map.setView(cityCenters[city], 13);
+      }
+      setTimeout(() => map.invalidateSize(), 100);
 
       listTitle.textContent = `Puntos en ${city}`;
       countBadge.textContent = `${points.length} punto${points.length === 1 ? '' : 's'}`;
-      locationsList.innerHTML = points.map((point, index) => `
+      locationsList.innerHTML = points.length ? points.map((point, index) => `
         <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <h3 class="text-lg font-extrabold text-slate-900">${point.name}</h3>
-          <p class="mt-2 text-sm font-semibold text-slate-700">📍 ${point.address}</p>
-          <p class="mt-2 text-sm text-slate-600">🕒 ${point.hours}</p>
-          <div class="mt-3 flex flex-wrap gap-2">${point.urgent.map(item => `<span class="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">${item}</span>`).join('')}</div>
-          <button class="mt-4 w-full rounded-xl bg-blue-700 px-4 py-3 font-extrabold text-white transition hover:bg-blue-800" onclick="markers[${index}].openPopup(); map.setView([${point.lat}, ${point.lng}], 15);">Ver en el mapa</button>
+          <h3 class="text-lg font-extrabold text-slate-900">${escapeHtml(point.name)}</h3>
+          <p class="mt-2 text-sm font-semibold text-slate-700">📍 ${escapeHtml(point.address)}</p>
+          <p class="mt-2 text-sm text-slate-600">🕒 ${escapeHtml(point.hours)}</p>
+          <div class="mt-3 flex flex-wrap gap-2">${point.urgent.map(item => `<span class="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">${escapeHtml(item)}</span>`).join('')}</div>
+          <button class="mt-4 w-full rounded-xl bg-blue-700 px-4 py-3 font-extrabold text-white transition hover:bg-blue-800" onclick="markers[${index}].openPopup(); map.setView([${point.lat}, ${point.lng}], 16);">Ver en el mapa</button>
         </article>
-      `).join('');
+      `).join('') : '<p class="rounded-2xl bg-slate-100 p-4 font-semibold text-slate-600">Aún no hay puntos registrados para este municipio.</p>';
 
       document.querySelectorAll('[data-city]').forEach(button => {
         const isActive = button.dataset.city === city;
@@ -131,15 +224,46 @@
       });
     }
 
+    pointForm.addEventListener('submit', event => {
+      event.preventDefault();
+      const city = formCity.value;
+      const [centerLat, centerLng] = cityCenters[city];
+      const latValue = document.querySelector('#pointLat').value;
+      const lngValue = document.querySelector('#pointLng').value;
+      const lat = latValue === '' ? centerLat : Number(latValue);
+      const lng = lngValue === '' ? centerLng : Number(lngValue);
+      const point = {
+        city,
+        name: document.querySelector('#pointName').value.trim(),
+        address: document.querySelector('#pointAddress').value.trim(),
+        hours: document.querySelector('#pointHours').value.trim(),
+        urgent: document.querySelector('#pointUrgent').value.split(',').map(item => item.trim()).filter(Boolean),
+        lat,
+        lng,
+        community: true
+      };
+      communityPoints = [...communityPoints, point];
+      localStorage.setItem(storageKey, JSON.stringify(communityPoints));
+      collectionPoints = [...collectionPoints, point];
+      pointForm.reset();
+      formCity.value = city;
+      citySelect.value = city;
+      formMessage.textContent = 'Punto agregado. La tarjeta y el marcador ya están disponibles en el listado.';
+      formMessage.classList.remove('hidden');
+      renderCity(city);
+    });
+
     citySelect.addEventListener('change', event => renderCity(event.target.value));
     quickButtons.addEventListener('click', event => {
       const button = event.target.closest('[data-city]');
       if (!button) return;
       citySelect.value = button.dataset.city;
+      formCity.value = button.dataset.city;
       renderCity(button.dataset.city);
     });
 
-    renderCity(cities[0]);
+    populateCityControls();
+    renderCity('Cali');
   </script>
 </body>
 </html>
